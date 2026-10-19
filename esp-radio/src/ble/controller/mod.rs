@@ -2,13 +2,6 @@
 use alloc::boxed::Box;
 use core::{future::Future, task::Poll};
 
-use bt_hci::{
-    ControllerToHostPacket,
-    FromHciBytes,
-    FromHciBytesError,
-    HostToControllerPacket,
-    WriteHci,
-};
 use bt_hci_transport::{PacketKind, PacketToController, PacketToHost};
 use docsplay::Display;
 use embassy_sync::mutex::Mutex;
@@ -250,12 +243,6 @@ impl embedded_io_async_07::Write for BleConnector<'_> {
     }
 }
 
-impl From<FromHciBytesError> for BleConnectorError {
-    fn from(_e: FromHciBytesError) -> Self {
-        BleConnectorError::Unknown
-    }
-}
-
 /// Completes once any HCI data is available, including a part-read packet.
 pub(crate) struct HciAnyDataReadyEventFuture;
 
@@ -302,16 +289,6 @@ impl<E: embedded_io_07::Error> From<bt_hci_transport::ReadHciError<E>> for BleCo
     }
 }
 
-fn parse_hci(data: &[u8]) -> Result<ControllerToHostPacket<'_>, BleConnectorError> {
-    match ControllerToHostPacket::from_hci_bytes_complete(data) {
-        Ok(p) => Ok(p),
-        Err(e) => {
-            warn!("[hci] error parsing packet: {:?}", e);
-            Err(BleConnectorError::Unknown)
-        }
-    }
-}
-
 /// Checks that the collector can send a packet, before any byte of it gets to the collector.
 ///
 /// `indicator` is the HCI packet type indicator, and `size` is the size of the packet without it.
@@ -350,39 +327,6 @@ async fn next_packet() -> Box<[u8]> {
     }
 }
 
-impl bt_hci::transport::Transport for BleConnector<'_> {
-    /// Read a complete HCI packet into the rx buffer
-    async fn read<'a>(&self, rx: &'a mut [u8]) -> Result<ControllerToHostPacket<'a>, Self::Error> {
-        // Workaround for borrow checker.
-        // Safety: we only return a reference to x once, if parsing is successful.
-        let rx = unsafe { &mut *core::ptr::slice_from_raw_parts_mut(rx.as_mut_ptr(), rx.len()) };
-
-        // `ControllerToHostPacket` borrows `rx`, so the packet has to be copied there.
-        let len = loop {
-            HciPacketReadyEventFuture.await;
-            match read_next(rx) {
-                Ok(0) => {} // A different reader took the packet first: wait again.
-                Ok(len) => break len,
-                // The packet is longer than `rx`, and `read_next` dropped it. Do not return an
-                // error: hosts stop their receive loop on a read error, so one packet that
-                // does not fit would stop all BLE traffic.
-                Err(_) => {}
-            }
-        };
-        parse_hci(&rx[..len])
-    }
-
-    /// Write a complete HCI packet from the tx buffer
-    async fn write<T: HostToControllerPacket>(&self, val: &T) -> Result<(), Self::Error> {
-        check_outgoing_packet(T::KIND as u8, val.size())?;
-
-        let mut writer = self.hci_writer.lock().await;
-        bt_hci::transport::WithIndicator::new(val)
-            .write_hci_async(&mut *writer)
-            .await
-    }
-}
-
 impl bt_hci_transport::Transport for BleConnector<'_> {
     /// Read a complete HCI packet into the rx buffer
     async fn read<'a, P: PacketToHost<'a>>(&self, rx: &'a mut [u8]) -> Result<P, Self::Error> {
@@ -396,9 +340,8 @@ impl bt_hci_transport::Transport for BleConnector<'_> {
 
         // `P::read_hci` reads only the length that the packet header gives, so bytes after it
         // stay in `reader`. A data packet must fill its frame exactly: extra bytes show that the
-        // frame is malformed. Event packets are not checked, which is the same as in the
-        // `bt_hci::transport::Transport` implementation above
-        // (`ControllerToHostPacket::from_hci_bytes_complete`).
+        // frame is malformed. Event packets are not checked, matching
+        // `ControllerToHostPacket::from_hci_bytes_complete`.
         if kind != PacketKind::Event && !reader.is_empty() {
             warn!(
                 "[hci] dropping {:?} packet with {} unexpected trailing bytes",
