@@ -333,6 +333,14 @@ esp-now = ["wifi", "__has_unstable_feature_enabled"]
 sniffer = ["wifi", "__has_unstable_feature_enabled"]
 #DOC_ENDIF
 
+#DOC_IF has("esp32")
+## Start the Bluetooth controller in dual mode (BR/EDR and LE), so that a Bluetooth Classic host
+## can use it through `BleConnector`. ESP32 only.
+##
+## ⚠️ This feature is considered unstable.
+#DOC_ENDIF
+bt-classic = ["ble"]
+
 #DOC_IF has("bt_driver_supported")
 ## Enable BLE support.
 ##

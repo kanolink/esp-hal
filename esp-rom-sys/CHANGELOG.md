@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- ESP32: ROM address of `lm_get_total_pkt_type`, needed by the patched BR/EDR controller code
 
 ### Changed
 

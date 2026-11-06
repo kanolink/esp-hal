@@ -9,9 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `bt-classic` feature: the ESP32 controller starts in dual mode (BR/EDR and LE) for a Bluetooth Classic host
 
 ### Changed
 
+- ESP32: BT PLL tracking is turned on before the baseband starts, and `bt_max_sync_conn` is 0, as in ESP-IDF
 
 ### Fixed
 

@@ -492,6 +492,11 @@ pub(crate) fn ble_init(config: &Config) -> PhyInitGuard<'static> {
 
         cfg_select! {
             esp32 => {
+                // ESP-IDF `esp_bt_controller_enable`: BT PLL tracking on, then the baseband.
+                unsafe extern "C" {
+                    fn sdk_config_set_bt_pll_track_enable(enable: bool);
+                }
+                sdk_config_set_bt_pll_track_enable(true);
                 btdm_rf_bb_init_phase2();
                 coex_bt_high_prio();
             }
@@ -500,7 +505,10 @@ pub(crate) fn ble_init(config: &Config) -> PhyInitGuard<'static> {
             }
         }
 
+        #[cfg(not(feature = "bt-classic"))]
         btdm_controller_enable(esp_bt_mode_t_ESP_BT_MODE_BLE);
+        #[cfg(feature = "bt-classic")]
+        btdm_controller_enable(esp_bt_mode_t_ESP_BT_MODE_BTDM);
 
         if config.modem_sleep() {
             btdm_controller_enable_sleep(true);

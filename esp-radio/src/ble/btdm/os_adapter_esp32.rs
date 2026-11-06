@@ -181,10 +181,15 @@ extern "C" fn patch_apply() {
     unsafe extern "C" {
         fn config_ble_funcs_reset();
         fn config_btdm_funcs_reset();
+        #[cfg(feature = "bt-classic")]
+        fn config_bt_funcs_reset();
     }
 
+    // ESP-IDF `patch_apply`: point the ROM's function tables at the patched controller code.
     unsafe {
         config_btdm_funcs_reset();
+        #[cfg(feature = "bt-classic")]
+        config_bt_funcs_reset();
         config_ble_funcs_reset();
     }
 }
@@ -392,13 +397,21 @@ pub(crate) fn create_ble_config(config: &Config) -> esp_bt_controller_config_t {
         normal_adv_size: config.scan_duplicate_list_count,
         send_adv_reserved_size: SCAN_SEND_ADV_RESERVED_SIZE as _,
         controller_debug_flag: BTDM_CTRL_CONTROLLER_DEBUG_FLAG as _,
+        #[cfg(not(feature = "bt-classic"))]
         mode: esp_bt_mode_t_ESP_BT_MODE_BLE as _,
+        #[cfg(feature = "bt-classic")]
+        mode: esp_bt_mode_t_ESP_BT_MODE_BTDM as _,
         ble_max_conn: config.max_connections,
+        #[cfg(not(feature = "bt-classic"))]
         bt_max_acl_conn: 0,
+        #[cfg(feature = "bt-classic")]
+        bt_max_acl_conn: 1,
         bt_sco_datapath: 0,
         auto_latency: false,
         bt_legacy_auth_vs_evt: false,
-        bt_max_sync_conn: 1,
+        // ESP-IDF forces this to CONFIG_BTDM_CTRL_BR_EDR_MAX_SYNC_CONN (0), which is also what
+        // `SOC_MEM_BT_EM_BREDR_REAL_END` assumes: the exchange memory zeroed at init ends there.
+        bt_max_sync_conn: 0,
         ble_sca: 1,
         pcm_role: 0,
         pcm_polar: 0,

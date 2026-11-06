@@ -109,7 +109,15 @@ pub(crate) const MAX_HCI_CMD_PACKET_LEN: usize = 1 + 3 + 255;
 ///
 /// `trouble-host` splits outgoing ACL data at the size that the controller reports (`LE Read
 /// Buffer Size`). `Transport::write` rejects ACL packets with more than 255 data bytes.
+#[cfg(all(feature = "bt-classic", not(esp32)))]
+compile_error!("The `bt-classic` feature is only supported on the ESP32.");
+
+#[cfg(not(feature = "bt-classic"))]
 pub(crate) const MAX_HCI_ACL_PACKET_LEN: usize = 1 + 4 + 255;
+/// BR/EDR ACL packets go up to the controller's `Read Buffer Size` (1021 data bytes on the
+/// ESP32), which the classic host splits its L2CAP traffic at.
+#[cfg(feature = "bt-classic")]
+pub(crate) const MAX_HCI_ACL_PACKET_LEN: usize = 1 + 4 + 1021;
 
 /// The largest outgoing HCI packet that this connector supports, including the packet type
 /// indicator byte.
